@@ -17,6 +17,10 @@ class DepthwiseSeparableConv(nn.Module):
             stride_dw: stride for depthwise convolution
             stride_pw: stride for pointwise convolution
         """
+        self.depthwise = NotImplemented
+        self.bn1 = NotImplemented
+        self.pointwise = NotImplemented
+        self.bn2 = NotImplemented
         raise NotImplementedError
     
     def forward(self, x):
@@ -34,6 +38,24 @@ class MobileNet(nn.Module):
         Inputs:
             num_classes: number of classes for classification
         """
+        self.conv0 = NotImplemented
+        self.dw_sep_conv0 = NotImplemented 
+        self.dw_sep_conv1 = NotImplemented
+        self.dw_sep_conv2 = NotImplemented
+        self.dw_sep_conv3 = NotImplemented
+        self.dw_sep_conv4 = NotImplemented
+        self.dw_sep_conv5 = NotImplemented
+        self.dw_sep_conv61 = NotImplemented
+        self.dw_sep_conv62 = NotImplemented
+        self.dw_sep_conv63 = NotImplemented
+        self.dw_sep_conv64 = NotImplemented
+        self.dw_sep_conv65 = NotImplemented
+        self.dw_sep_conv7 = NotImplemented
+        self.dw_sep_conv8 = NotImplemented
+        self.avgpool = NotImplemented
+        self.fc = NotImplemented
+        self.softmax = NotImplemented
+
         raise NotImplementedError
 
     def forward(self, x):

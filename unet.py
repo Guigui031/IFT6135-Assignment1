@@ -25,6 +25,8 @@ class DecoderBlock(nn.Module):
     """
     def __init__(self, in_channels, out_channels):
         super().__init__()
+        self.upconv = NotImplemented
+        self.conv = NotImplemented
         raise NotImplementedError
 
     def forward(self, x, skip):
@@ -34,6 +36,17 @@ class DecoderBlock(nn.Module):
 class UNet(nn.Module):
     def __init__(self, input_shape, num_classes):
         super().__init__()
+        self.encoder_block1 = NotImplemented
+        self.encoder_block2 = NotImplemented
+        self.encoder_block3 = NotImplemented
+        self.encoder_block4 = NotImplemented
+        self.encoder_block5 = NotImplemented
+        self.pool = NotImplemented
+        self.decoder_block1 = NotImplemented
+        self.decoder_block2 = NotImplemented
+        self.decoder_block3 = NotImplemented
+        self.decoder_block4 = NotImplemented
+        self.outconv = NotImplemented
         raise NotImplementedError
 
     def forward(self, x):
