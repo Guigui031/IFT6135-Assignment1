@@ -42,6 +42,8 @@ class DiceLoss(nn.Module):
         inputs = torch.sigmoid(logits)
 
         # TODO: compute the Dice coefficient
+        intersection = (inputs * targets).sum()
+        dice = (2. * intersection + smooth) / (inputs.sum() + targets.sum() + smooth)
 
         return 1. - dice
     
@@ -66,4 +68,6 @@ class DiceCELoss(nn.Module):
         self.ceLoss = BinaryCELoss()
 
     def forward(self, logits, targets):
-        raise NotImplementedError
+        dice_loss = self.diceLoss(logits, targets)
+        ce_loss = self.ceLoss(logits, targets)
+        return dice_loss + ce_loss
