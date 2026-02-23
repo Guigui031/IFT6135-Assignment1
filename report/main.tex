@@ -1,0 +1,331 @@
+\documentclass{article}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{float}
+\usepackage{amsmath}
+\usepackage{hyperref}
+
+\title{IFT6135 - H2026}
+\author{Guillaume Genois, 20248507}
+\date{January 2026}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+
+%══════════════════════════════════════════════════════════════════════════════
+\section{Problem 2}
+%══════════════════════════════════════════════════════════════════════════════
+
+\subsection{Question 1: Speed comparison of \texttt{discrete\_2d\_convolution}
+            vs \texttt{scipy.signal.convolve2d}}
+
+\subsubsection*{Experimental setup}
+
+We measure the average wall-clock time (over 5 runs) of two implementations:
+\begin{itemize}
+  \item \textbf{Custom} (\texttt{discrete\_2d\_convolution}): a pure-NumPy
+        implementation using explicit Python \texttt{for}-loops over every
+        output pixel, each iteration computing an element-wise product of an
+        image patch with the kernel via \texttt{np.sum}.
+  \item \textbf{SciPy} (\texttt{scipy.signal.convolve2d}): called with
+        \texttt{mode='same'} to match the custom function's output size.
+\end{itemize}
+
+We sweep four image sizes ($64$, $128$, $256$, $512$ pixels square) and three
+kernel sizes ($3\!\times\!3$, $7\!\times\!7$, $15\!\times\!15$) on random
+float64 arrays.
+
+\subsubsection*{Results}
+
+\begin{table}[H]
+  \centering
+  \caption{Mean execution time (seconds) and speedup of SciPy over the custom
+           implementation.}
+  \label{tab:conv_benchmark}
+  \begin{tabular}{ccrrrr}
+    \toprule
+    Image size & Kernel & Custom (s) & SciPy (s) & Speedup \\
+    \midrule
+    $64\times64$   & $3\times3$   & 0.0230 & 0.0001 & $\approx201\times$ \\
+    $64\times64$   & $7\times7$   & 0.0215 & 0.0004 & $\approx58\times$  \\
+    $64\times64$   & $15\times15$ & 0.0219 & 0.0013 & $\approx17\times$  \\
+    \midrule
+    $128\times128$ & $3\times3$   & 0.0840 & 0.0004 & $\approx219\times$ \\
+    $128\times128$ & $7\times7$   & 0.0843 & 0.0015 & $\approx56\times$  \\
+    $128\times128$ & $15\times15$ & 0.0878 & 0.0053 & $\approx17\times$  \\
+    \midrule
+    $256\times256$ & $3\times3$   & 0.3294 & 0.0018 & $\approx186\times$ \\
+    $256\times256$ & $7\times7$   & 0.3361 & 0.0062 & $\approx54\times$  \\
+    $256\times256$ & $15\times15$ & 0.3560 & 0.0216 & $\approx17\times$  \\
+    \midrule
+    $512\times512$ & $3\times3$   & 1.3480 & 0.0068 & $\approx198\times$ \\
+    $512\times512$ & $7\times7$   & 1.3710 & 0.0247 & $\approx56\times$  \\
+    $512\times512$ & $15\times15$ & 1.4760 & 0.0918 & $\approx16\times$  \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{convolution_benchmark.png}
+  \caption{Execution time (seconds) as a function of image size for three
+           kernel sizes. SciPy is consistently faster by one to two orders
+           of magnitude.}
+  \label{fig:conv_benchmark}
+\end{figure}
+
+\subsubsection*{Explanation of the speed difference}
+
+\paragraph{Custom implementation.}
+The custom function uses two nested Python \texttt{for}-loops — one over each
+output pixel — for a total of $H \times W$ Python iterations.  Inside each
+iteration, \texttt{np.sum(patch * kernel)} performs $K_h \times K_w$
+floating-point operations in C, but the loop itself is interpreted by the
+Python runtime.  The overall time complexity is
+$\mathcal{O}(H \cdot W \cdot K_h \cdot K_w)$, and the constant factor is
+large because Python loop overhead dominates for small kernels (the inner
+NumPy call is very short-lived relative to the Python dispatch cost).
+
+\paragraph{SciPy implementation.}
+\texttt{scipy.signal.convolve2d} is implemented in compiled C/Fortran and
+avoids Python-level loops entirely.  For large kernels it can additionally
+switch to an FFT-based algorithm with complexity
+$\mathcal{O}(H \cdot W \cdot \log(H \cdot W))$, which is asymptotically
+cheaper than the direct-sum approach.
+
+\paragraph{Why the speedup \emph{decreases} with larger kernels.}
+For a small kernel (e.g.\ $3\!\times\!3$), the inner NumPy work per Python
+iteration is tiny, so \emph{Python overhead} is the bottleneck and the
+speedup is largest (${\approx}200\times$).  As the kernel grows (e.g.\
+$15\!\times\!15$), each Python iteration triggers more NumPy work, slightly
+amortising the overhead, and SciPy's own cost grows too — leading to a
+smaller but still substantial speedup (${\approx}16\times$).
+
+\paragraph{Conclusion.}
+The gap illustrates why production deep-learning frameworks never implement
+convolutions with Python loops.  Using compiled back-ends (and optionally
+FFT-based algorithms) is essential for achieving practical training and
+inference speeds.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\subsection{Question 2: Blurring kernel}
+
+\subsubsection*{Proposed kernel}
+
+We use a \textbf{Gaussian kernel} of size $15\times15$ with standard deviation
+$\sigma = 3$ pixels, defined as:
+
+\begin{equation}
+  K[m,n] = \frac{1}{Z}\exp\!\left(-\frac{m^2+n^2}{2\sigma^2}\right),
+  \qquad Z = \sum_{m,n}\exp\!\left(-\frac{m^2+n^2}{2\sigma^2}\right),
+  \label{eq:gaussian_kernel}
+\end{equation}
+
+where the normalisation constant $Z$ ensures the kernel sums to~$1$, so that
+the overall image brightness is preserved.  The kernel is visualised in
+Figure~\ref{fig:gaussian_kernel} and the blurring result in
+Figure~\ref{fig:blur_result}.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.45\linewidth]{gaussian_kernel.png}
+  \caption{Gaussian kernel ($15\times15$, $\sigma=3$). Weights are highest at
+           the centre and decay smoothly towards the edges.}
+  \label{fig:gaussian_kernel}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{blur_result.png}
+  \caption{Left: original image. Right: image after applying the
+           $15\times15$ Gaussian blur kernel ($\sigma=3$).}
+  \label{fig:blur_result}
+\end{figure}
+
+\subsubsection*{Why Gaussian convolution performs blurring}
+
+Convolving an image with a kernel replaces every pixel value with a
+\emph{weighted average} of its neighbourhood.  When the kernel weights are
+non-negative and sum to~$1$ — as in Equation~\eqref{eq:gaussian_kernel} —
+each output pixel becomes a mixture of nearby input pixels, which has two
+immediate consequences:
+
+\begin{enumerate}
+  \item \textbf{High-frequency detail is attenuated.}  Sharp transitions
+        (edges, fine textures) correspond to rapid spatial changes in pixel
+        intensity — i.e.\ high-frequency components in the Fourier domain.
+        Averaging over a neighbourhood dampens these abrupt changes, reducing
+        high-frequency energy and producing a smoother image.
+
+  \item \textbf{Low-frequency structure is preserved.}  Regions of slowly
+        varying intensity (large uniform areas, coarse shapes) are nearly
+        constant across the averaging window, so their contribution to the
+        output is barely changed.
+\end{enumerate}
+
+The Gaussian weighting is preferable to a flat \emph{box} (average) kernel
+because it gives more weight to pixels close to the centre and progressively
+less weight to distant ones.  This smooth roll-off avoids the ringing
+artefacts (Gibbs phenomenon) that a sharp rectangular window introduces, and
+produces a more visually natural blur.  Formally, the Gaussian kernel is the
+unique kernel that is separable, isotropic, and whose repeated application
+remains Gaussian — a property inherited from the Central Limit Theorem, which
+states that repeated averaging converges to a Gaussian distribution.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\subsection{Question 3: Edge-detection kernels}
+
+\subsubsection*{Proposed kernels}
+
+We use the \textbf{Sobel operator}, a standard first-order derivative filter
+that combines a finite-difference gradient with Gaussian smoothing along the
+orthogonal axis.  Two $3\times3$ kernels are defined:
+
+\begin{equation}
+  G_y = \begin{bmatrix} -1 & -2 & -1 \\ 0 & 0 & 0 \\ 1 & 2 & 1 \end{bmatrix}
+  \qquad
+  G_x = \begin{bmatrix} -1 & 0 & 1 \\ -2 & 0 & 2 \\ -1 & 0 & 1 \end{bmatrix}
+  \label{eq:sobel}
+\end{equation}
+
+$G_y$ (horizontal edges) approximates the partial derivative of the image
+intensity along the vertical axis ($\partial I / \partial y$).
+$G_x$ (vertical edges) approximates the partial derivative along the
+horizontal axis ($\partial I / \partial x$).
+Both kernels are visualised in Figure~\ref{fig:sobel_kernels}.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.7\linewidth]{sobel_kernels.png}
+  \caption{Sobel kernels $G_y$ (left) and $G_x$ (right).
+           Red cells carry positive weights; blue cells carry negative weights.
+           The central column/row of zeros makes the kernel anti-symmetric.}
+  \label{fig:sobel_kernels}
+\end{figure}
+
+\subsubsection*{Results}
+
+Figure~\ref{fig:edge_result} shows the original image alongside the absolute
+gradient responses of the two kernels.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{edge_detection_result.png}
+  \caption{Left: original image. Centre: horizontal edges ($|G_y * I|$).
+           Right: vertical edges ($|G_x * I|$).
+           Bright pixels indicate strong gradient responses.}
+  \label{fig:edge_result}
+\end{figure}
+
+As expected, $G_y$ highlights the roof line, hood, and bumpers (predominantly
+horizontal boundaries), while $G_x$ highlights the windshield pillars, wheel
+arches, and side panels (predominantly vertical boundaries).
+
+\subsubsection*{How the kernels detect edges}
+
+Each Sobel kernel can be decomposed as the outer product of a
+\emph{smoothing} vector and a \emph{differencing} vector:
+
+\begin{equation}
+  G_y = \begin{bmatrix}1\\2\\1\end{bmatrix}
+        \begin{bmatrix}-1&0&1\end{bmatrix}^{\!\top}
+  \hspace{2em}
+  G_x = \begin{bmatrix}-1\\0\\1\end{bmatrix}
+        \begin{bmatrix}1&2&1\end{bmatrix}^{\!\top}
+\end{equation}
+
+The differencing vector computes a numerical first derivative: it subtracts
+pixel values on one side of a boundary from those on the other side.  Where
+intensity is locally constant (flat region) the difference is zero; where
+intensity changes abruptly (edge) the difference is large.  The smoothing
+vector averages over the perpendicular direction, which reduces sensitivity to
+noise while still localising the edge accurately.  Taking the absolute value
+of the output captures both rising and falling transitions as bright ridges
+in the response map.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\subsection{Question 6: MLP vs MobileNet on PathMNIST}
+
+\subsubsection*{Experimental setup}
+
+Both models are trained on \textbf{PathMNIST} (9-class colorectal tissue
+classification, $3\times28\times28$ images) using the fixed hyperparameters
+in \texttt{main\_classification.py}:
+
+\begin{itemize}
+  \item Optimiser: AdamW, lr $= 10^{-3}$, weight decay $= 5\times10^{-4}$
+  \item Batch size: 128, Epochs: 15, Loss: CrossEntropyLoss
+  \item Data augmentation (train): random horizontal flip + random resized crop
+\end{itemize}
+
+\textbf{MLP}: four hidden layers $[1024, 512, 64, 64]$, ReLU, Glorot normal
+init, flattened input of size $2352$.
+
+\textbf{MobileNet}: depthwise separable convolutions (Table~1 of the
+assignment), AdaptiveAvgPool $\to$ $1\times1$, linear head $1024\to9$.
+
+\subsubsection*{Results}
+
+\begin{table}[H]
+  \centering
+  \caption{Final test performance after 15 epochs.}
+  \label{tab:q6_results}
+  \begin{tabular}{lrr}
+    \toprule
+    Model & Best val.\ accuracy & Test accuracy \\
+    \midrule
+    MLP       & -- & -- \\
+    MobileNet & -- & -- \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{training_curves.png}
+  \caption{Training and validation loss (left) and accuracy (right) over
+           15 epochs.  MLP: blue; MobileNet: orange.
+           Solid lines: train, dashed lines: validation.}
+  \label{fig:training_curves}
+\end{figure}
+
+\subsubsection*{Conclusion}
+
+% TODO: fill in after training runs complete.
+
+%══════════════════════════════════════════════════════════════════════════════
+\section{Problem 3}
+%══════════════════════════════════════════════════════════════════════════════
+
+\subsection{Question 1: UNet implementation}
+
+% TODO
+
+\subsection{Question 2: DiceLoss and DiceCELoss}
+
+% TODO
+
+%══════════════════════════════════════════════════════════════════════════════
+\section{Problem 4}
+%══════════════════════════════════════════════════════════════════════════════
+
+\subsection{Question 1: UNet without skip connections}
+
+% TODO
+
+\subsection{Question 2: Effect of learning rate}
+
+% TODO
+
+\subsection{Question 3: Data augmentation strategies}
+
+% TODO
+
+\subsection{Question 4: Pretrained model fine-tuning}
+
+% TODO
+
+\end{document}

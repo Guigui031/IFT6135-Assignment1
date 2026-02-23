@@ -17,14 +17,20 @@ class DepthwiseSeparableConv(nn.Module):
             stride_dw: stride for depthwise convolution
             stride_pw: stride for pointwise convolution
         """
-        self.depthwise = NotImplemented
-        self.bn1 = NotImplemented
-        self.pointwise = NotImplemented
-        self.bn2 = NotImplemented
-        raise NotImplementedError
-    
+        # Depthwise: one filter per input channel (groups=in_channels)
+        self.depthwise = nn.Conv2d(in_channels, in_channels, kernel_size=3,
+                                   stride=stride_dw, padding=1,
+                                   groups=in_channels, bias=False)
+        self.bn1 = nn.BatchNorm2d(in_channels)
+        # Pointwise: 1x1 conv to project to out_channels
+        self.pointwise = nn.Conv2d(in_channels, out_channels, kernel_size=1,
+                                   stride=stride_pw, padding=0, bias=False)
+        self.bn2 = nn.BatchNorm2d(out_channels)
+
     def forward(self, x):
-        raise NotImplementedError
+        x = F.relu(self.bn1(self.depthwise(x)))
+        x = F.relu(self.bn2(self.pointwise(x)))
+        return x
     
 
 class MobileNet(nn.Module):
@@ -38,25 +44,51 @@ class MobileNet(nn.Module):
         Inputs:
             num_classes: number of classes for classification
         """
-        self.conv0 = NotImplemented
-        self.dw_sep_conv0 = NotImplemented 
-        self.dw_sep_conv1 = NotImplemented
-        self.dw_sep_conv2 = NotImplemented
-        self.dw_sep_conv3 = NotImplemented
-        self.dw_sep_conv4 = NotImplemented
-        self.dw_sep_conv5 = NotImplemented
-        self.dw_sep_conv61 = NotImplemented
-        self.dw_sep_conv62 = NotImplemented
-        self.dw_sep_conv63 = NotImplemented
-        self.dw_sep_conv64 = NotImplemented
-        self.dw_sep_conv65 = NotImplemented
-        self.dw_sep_conv7 = NotImplemented
-        self.dw_sep_conv8 = NotImplemented
-        self.avgpool = NotImplemented
-        self.fc = NotImplemented
-        self.softmax = NotImplemented
+        # Conv/s2: standard conv block — 3×3, 3→32, stride=2
+        self.conv0 = nn.Sequential(
+            nn.Conv2d(3, 32, kernel_size=3, stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(32),
+            nn.ReLU()
+        )
 
-        raise NotImplementedError
+        # Depthwise separable blocks following Table 1
+        self.dw_sep_conv0 = DepthwiseSeparableConv(32,  64,  stride_dw=1, stride_pw=1)
+        self.dw_sep_conv1 = DepthwiseSeparableConv(64,  128, stride_dw=2, stride_pw=1)
+        self.dw_sep_conv2 = DepthwiseSeparableConv(128, 128, stride_dw=1, stride_pw=1)
+        self.dw_sep_conv3 = DepthwiseSeparableConv(128, 256, stride_dw=2, stride_pw=1)
+        self.dw_sep_conv4 = DepthwiseSeparableConv(256, 256, stride_dw=1, stride_pw=1)
+        self.dw_sep_conv5 = DepthwiseSeparableConv(256, 512, stride_dw=2, stride_pw=1)
+
+        # 5× repeated block at 512 channels
+        self.dw_sep_conv61 = DepthwiseSeparableConv(512, 512, stride_dw=1, stride_pw=1)
+        self.dw_sep_conv62 = DepthwiseSeparableConv(512, 512, stride_dw=1, stride_pw=1)
+        self.dw_sep_conv63 = DepthwiseSeparableConv(512, 512, stride_dw=1, stride_pw=1)
+        self.dw_sep_conv64 = DepthwiseSeparableConv(512, 512, stride_dw=1, stride_pw=1)
+        self.dw_sep_conv65 = DepthwiseSeparableConv(512, 512, stride_dw=1, stride_pw=1)
+
+        self.dw_sep_conv7 = DepthwiseSeparableConv(512,  1024, stride_dw=2, stride_pw=1)
+        self.dw_sep_conv8 = DepthwiseSeparableConv(1024, 1024, stride_dw=2, stride_pw=1)
+
+        self.avgpool = nn.AdaptiveAvgPool2d(1)
+        self.fc = nn.Linear(1024, num_classes)
+        self.softmax = nn.Softmax(dim=1)
 
     def forward(self, x):
-        raise NotImplementedError
+        x = self.conv0(x)
+        x = self.dw_sep_conv0(x)
+        x = self.dw_sep_conv1(x)
+        x = self.dw_sep_conv2(x)
+        x = self.dw_sep_conv3(x)
+        x = self.dw_sep_conv4(x)
+        x = self.dw_sep_conv5(x)
+        x = self.dw_sep_conv61(x)
+        x = self.dw_sep_conv62(x)
+        x = self.dw_sep_conv63(x)
+        x = self.dw_sep_conv64(x)
+        x = self.dw_sep_conv65(x)
+        x = self.dw_sep_conv7(x)
+        x = self.dw_sep_conv8(x)
+        x = self.avgpool(x)
+        x = x.view(x.size(0), -1)
+        x = self.fc(x)
+        return x

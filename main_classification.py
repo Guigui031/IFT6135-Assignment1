@@ -159,9 +159,9 @@ def main():
     # Load model
     print(f'Build model {args.model.upper()}...')
     if args.model == 'mlp':
-        model = MLP(input_size=____, hidden_sizes=[1024,512,64,64], num_classes=____, activation="relu")
+        model = MLP(input_size=3*28*28, hidden_sizes=[1024,512,64,64], num_classes=9, activation="relu")
     if args.model == 'mobilenet':
-        model = MobileNet(num_classes=____)
+        model = MobileNet(num_classes=9)
     model.to(device)
     print(f"Initialized {args.model.upper()} model with {sum(p.numel() for p in model.parameters())} "
           f"total parameters, of which {sum(p.numel() for p in model.parameters() if p.requires_grad)} are learnable.")
