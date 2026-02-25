@@ -24,7 +24,10 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 from unet import UNet
+from p4_q1_unet_no_skip import UNetNoSkip
+from p4_q3_augmentations import AugmentedDataset
 from utils import DiceCELoss, DiceLoss
+import json
 from glob import glob
 import cv2
 from torch.utils.data import Dataset
@@ -77,12 +80,16 @@ def parse_args():
     parser.add_argument('--lr', type=float, default=1e-4, help='Learning rate (default: %(default)s).')
     parser.add_argument('--weight_decay', type=float, default=5e-4, help='Weight decay (default: %(default)s).')
     parser.add_argument('--print_every', type=int, default=80, help='Number of minibatches after which we print the loss (default: %(default)s).')
+    parser.add_argument('--model', type=str, default='unet', choices=['unet', 'unet_noskip', 'pretrained_unet'], help='Model to train (default: %(default)s).')
+    parser.add_argument('--optimizer', type=str, default='adamw', choices=['adamw', 'adam'], help='Optimizer (default: %(default)s).')
+    parser.add_argument('--augmentation', type=str, default='none',
+                        choices=['none', 'geometric', 'photometric', 'elastic', 'combined'],
+                        help='Training augmentation strategy (default: %(default)s).')
     return parser.parse_args()
 
 
 def dice_score(preds, targets):
-    # Compute the dice score using the DiceLoss class
-    raise NotImplementedError
+    return 1.0 - DiceLoss()(preds, targets.float())
 
 
 def train(epoch, model, dataloader, optimizer, loss_fn, accuracy_fn, device, args):
@@ -175,13 +182,24 @@ def main():
     valid_x = sorted(glob(f"{dataset_path}/test/image/*"))
     valid_y = sorted(glob(f"{dataset_path}/test/mask/*"))
     print(f"Dataset Size:\nTrain: {len(train_x)} - Valid: {len(valid_x)}\n")
-    # Load the datasets with the custom Dataset class
-    train_set = GetDataset(train_x, train_y)
-    val_set = GetDataset(valid_x, valid_y)
+    # Load the datasets — augmentation applied to train set only
+    train_set = AugmentedDataset(train_x, train_y, augmentation=args.augmentation)
+    val_set   = GetDataset(valid_x, valid_y)
     
     # Load model
-    print(f'Build UNET model...')
-    model = UNet(input_shape=____, num_classes=____)
+    print(f'Build {args.model.upper()} model...')
+    if args.model == 'unet':
+        model = UNet(input_shape=(3, 256, 256), num_classes=1)
+    elif args.model == 'unet_noskip':
+        model = UNetNoSkip(input_shape=(3, 256, 256), num_classes=1)
+    else:  # pretrained_unet
+        import segmentation_models_pytorch as smp
+        model = smp.Unet(
+            encoder_name="resnet18",
+            encoder_weights="imagenet",
+            in_channels=3,
+            classes=1,
+        )
     model.to(device)
     print(f"Initialized UNET model with {sum(p.numel() for p in model.parameters())} "
           f"total parameters, of which {sum(p.numel() for p in model.parameters() if p.requires_grad)} are learnable.")
@@ -189,7 +207,10 @@ def main():
     print("\n")
     
     # Optimizer
-    optimizer = optimizer = optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+    if args.optimizer == 'adam':
+        optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+    else:
+        optimizer = optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     # Loss function
     loss_fn = DiceCELoss()
     # Accuracy function
@@ -220,6 +241,20 @@ def main():
         valid_losses.append(loss)
         valid_accs.append(acc)
         valid_times.append(wall_time)
+
+    print(f"===== Best validation Dice: {max(valid_accs):.4f} =====>")
+
+    # Save logs
+    with open(os.path.join(args.logdir, 'results.json'), 'w') as f:
+        f.write(json.dumps(
+            {
+                "train_losses": train_losses,
+                "valid_losses": valid_losses,
+                "train_accs":   train_accs,
+                "valid_accs":   valid_accs,
+            },
+            indent=4,
+        ))
 
 
 if __name__ == "__main__":

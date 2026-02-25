@@ -5,3 +5,4 @@ opencv-python
 tqdm
 monai
 medmnist
+segmentation-models-pytorch

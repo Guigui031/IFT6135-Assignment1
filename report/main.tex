@@ -314,18 +314,274 @@ assignment), AdaptiveAvgPool $\to$ $1\times1$, linear head $1024\to9$.
 
 \subsection{Question 1: UNet without skip connections}
 
-% TODO
+\subsubsection*{Architecture}
+
+We build a \textbf{plain encoder-decoder} (autoencoder) with the same channel
+widths as the standard UNet, but with skip connections removed.  The only
+architectural difference is in the decoder blocks:
+
+\begin{itemize}
+  \item \textbf{UNet decoder block}: $\text{upconv}(C_\text{in}
+        \!\to\! C_\text{out})$ $\to$ concat skip $(C_\text{out})$
+        $\to$ double-conv$(2C_\text{out} \!\to\! C_\text{out})$
+  \item \textbf{No-skip decoder block}: $\text{upconv}(C_\text{in}
+        \!\to\! C_\text{out})$ $\to$ double-conv$(C_\text{out}
+        \!\to\! C_\text{out})$
+\end{itemize}
+
+All other hyperparameters (optimizer, lr, epochs, loss) are held constant
+so that the comparison isolates the effect of skip connections.
+
+\subsubsection*{Results}
+
+\begin{table}[H]
+  \centering
+  \caption{Best validation Dice score for UNet vs.\ UNet without skip
+           connections (40 epochs, retina vessel segmentation).}
+  \label{tab:p4q1_results}
+  \begin{tabular}{lrr}
+    \toprule
+    Model & Best val.\ Dice \\
+    \midrule
+    UNet (with skip)    & -- \\
+    UNet (no skip)      & -- \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{p4_q1_curves.png}
+  \caption{Training and validation Dice loss (left) and Dice score (right)
+           for UNet with and without skip connections.}
+  \label{fig:p4q1_curves}
+\end{figure}
+
+\subsubsection*{Conclusion}
+
+% TODO: fill in after training. Suggested talking points:
+%  - UNet (with skip) should achieve a significantly higher Dice score.
+%  - Without skip connections, high-frequency spatial detail (vessel edges,
+%    thin structures) is lost in the bottleneck and cannot be recovered.
+%  - Skip connections allow the decoder to directly reuse fine-grained
+%    encoder features at each resolution level, enabling accurate localisation.
+%  - The no-skip model may still segment large vessels but struggles with
+%    thin capillaries and precise boundaries.
 
 \subsection{Question 2: Effect of learning rate}
 
-% TODO
+\subsubsection*{Experimental setup}
+
+We train the UNet with the \textbf{Adam} optimizer for 40 epochs using five
+learning rates: $10^{-1}$, $10^{-2}$, $10^{-3}$, $10^{-4}$, $10^{-5}$.
+All other hyperparameters (batch size, weight decay, loss) are held constant.
+
+\subsubsection*{Results}
+
+\begin{table}[H]
+  \centering
+  \caption{Best validation Dice score per learning rate.}
+  \label{tab:p4q2_lr}
+  \begin{tabular}{lr}
+    \toprule
+    Learning rate & Best val.\ Dice \\
+    \midrule
+    $10^{-1}$ & -- \\
+    $10^{-2}$ & -- \\
+    $10^{-3}$ & -- \\
+    $10^{-4}$ & -- \\
+    $10^{-5}$ & -- \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{p4_q2_lr_curves.png}
+  \caption{Validation DiceCE loss (left) and Dice score (right) for each
+           learning rate across 40 epochs.}
+  \label{fig:p4q2_lr}
+\end{figure}
+
+\subsubsection*{Findings}
+
+% TODO: fill in after training. Expected observations below:
+%
+% lr = 0.1:  Likely diverges or oscillates heavily — steps too large,
+%            loss explodes or gets stuck at a poor minimum.
+%
+% lr = 0.01: May converge but unstably — loss curve noisy, possible
+%            overshooting around good minima.
+%
+% lr = 0.001: Typically the best trade-off for Adam on segmentation tasks —
+%             fast convergence, stable curve, high Dice score.
+%
+% lr = 0.0001: Converges smoothly but slowly — reaches a good solution
+%              by epoch 40 but may not fully converge.
+%
+% lr = 0.00001: Too slow — the model barely trains in 40 epochs, giving
+%               low Dice scores close to a random or trivial prediction.
+%
+% General conclusion: Adam is sensitive to learning rate.  The optimal
+% value balances step size (fast convergence) against stability (avoiding
+% overshooting).  For this task lr ~ 1e-3 is expected to work best.
 
 \subsection{Question 3: Data augmentation strategies}
 
-% TODO
+\subsubsection*{Strategies investigated}
+
+We compare four augmentation strategies against a no-augmentation baseline,
+all applied exclusively to the training set.  Every strategy transforms the
+image and mask \emph{consistently} so that spatial labels remain valid.
+
+\begin{enumerate}
+  \item \textbf{Geometric}: random horizontal flip ($p=0.5$), random vertical
+        flip ($p=0.5$), random rotation $\pm30°$ with reflect padding.
+        Rationale: retinal vessels have no preferred orientation; the model
+        should be invariant to flips and moderate rotations.
+
+  \item \textbf{Photometric}: random brightness offset $\in[-40,40]$ and
+        random contrast scaling factor $\in[0.7,1.3]$ applied to the image
+        only (masks are unchanged).
+        Rationale: fundus camera calibration and illumination vary between
+        patients; contrast/brightness shifts simulate this variability.
+
+  \item \textbf{Elastic deformation}: smooth random displacement field
+        ($\alpha=50$, $\sigma=6$) applied to both image and mask via
+        bilinear / nearest-neighbour interpolation respectively.
+        Rationale: elastic deformations simulate natural tissue deformation
+        and increase effective dataset size for thin, curved structures.
+
+  \item \textbf{Combined}: all three strategies applied in sequence
+        (geometric $\to$ photometric $\to$ elastic).
+        Rationale: if the three strategies address orthogonal sources of
+        variation, combining them should yield the best generalisation.
+\end{enumerate}
+
+\begin{figure}[H]
+  \centering
+  % TODO: add sample augmented images here (one row per strategy)
+  \caption{Example augmented images (top to bottom: geometric, photometric,
+           elastic, combined) with corresponding masks.}
+  \label{fig:p4q3_aug_examples}
+\end{figure}
+
+\subsubsection*{Results}
+
+\begin{table}[H]
+  \centering
+  \caption{Best validation Dice score per augmentation strategy (40 epochs).}
+  \label{tab:p4q3_aug}
+  \begin{tabular}{lr}
+    \toprule
+    Strategy & Best val.\ Dice \\
+    \midrule
+    No augmentation & -- \\
+    Geometric       & -- \\
+    Photometric     & -- \\
+    Elastic         & -- \\
+    Combined        & -- \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{p4_q3_aug_curves.png}
+  \caption{Validation DiceCE loss (left) and Dice score (right) for each
+           augmentation strategy across 40 epochs.}
+  \label{fig:p4q3_aug_curves}
+\end{figure}
+
+\subsubsection*{Conclusion}
+
+% TODO: fill in after training. Suggested talking points:
+%  - Geometric augmentation typically helps most — orientation invariance
+%    is a strong prior for vessel structure.
+%  - Photometric augmentation helps with domain shift between patients/cameras.
+%  - Elastic deformation is particularly valuable for thin structures
+%    (capillaries) where the model must learn deformable boundaries.
+%  - Combined should outperform any single strategy if they address
+%    independent sources of variation; if not, the added noise may hurt.
+%  - The dataset is small (DRIVE: 20 train images), so augmentation has
+%    a larger relative impact than on large datasets.
 
 \subsection{Question 4: Pretrained model fine-tuning}
 
-% TODO
+\subsubsection*{Setup}
+
+We compare two models trained under identical conditions (same optimizer,
+lr, epochs, loss, data):
+
+\begin{itemize}
+  \item \textbf{UNet from scratch}: our custom implementation with randomly
+        initialised weights (Problem 3).
+  \item \textbf{ResNet18-UNet (fine-tuned)}: \texttt{smp.Unet} from the
+        \texttt{segmentation-models-pytorch} library with a ResNet-18 encoder
+        pre-trained on ImageNet.  The encoder starts from ImageNet weights;
+        the decoder is randomly initialised and trained from scratch.
+\end{itemize}
+
+The key difference is the encoder initialisation.  In the pretrained model,
+the encoder has already learned powerful hierarchical feature representations
+(edges, textures, object parts) from 1.2M ImageNet images.  Fine-tuning
+adapts these representations to the retinal domain while the decoder learns
+to map them to vessel segmentation masks.
+
+\subsubsection*{Results}
+
+\begin{table}[H]
+  \centering
+  \caption{Best validation Dice score: from scratch vs.\ fine-tuned.}
+  \label{tab:p4q4}
+  \begin{tabular}{lrr}
+    \toprule
+    Model & Parameters & Best val.\ Dice \\
+    \midrule
+    UNet (from scratch)         & -- & -- \\
+    ResNet18-UNet (fine-tuned)  & -- & -- \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{p4_q4_curves.png}
+  \caption{Training and validation DiceCE loss (left) and Dice score (right).
+           Blue: UNet from scratch.  Orange: ResNet18-UNet fine-tuned from
+           ImageNet weights.}
+  \label{fig:p4q4_curves}
+\end{figure}
+
+\subsubsection*{Conclusion}
+
+% TODO: fill in after training. Suggested talking points:
+%
+% Convergence speed:
+%   The pretrained model should converge faster — its encoder already
+%   extracts meaningful low-level features (edges, gradients) that are
+%   relevant for vessel detection, requiring fewer gradient steps to
+%   reach a good solution.
+%
+% Final performance:
+%   The pretrained model should achieve a higher Dice score, especially
+%   given the small training set (DRIVE: 20 images).  With so little
+%   data, learning good feature representations from scratch is difficult;
+%   pretrained features act as strong regularisation.
+%
+% Training stability:
+%   The pretrained model's loss curve should be smoother — it starts
+%   from a better initialisation rather than random noise.
+%
+% Domain gap:
+%   ImageNet contains natural images, not fundus photographs.  Despite
+%   this gap, low-level features (edge detectors, texture filters) transfer
+%   well.  Higher-level semantic features transfer less, which is why
+%   the decoder must still be trained from scratch.
+%
+% General principle:
+%   Transfer learning is most beneficial when: (1) the source dataset is
+%   large and diverse, (2) the target dataset is small, and (3) there is
+%   some overlap in low-level feature structure between domains.
 
 \end{document}
