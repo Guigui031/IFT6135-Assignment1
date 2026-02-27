@@ -67,7 +67,7 @@ class MobileNet(nn.Module):
         self.dw_sep_conv65 = DepthwiseSeparableConv(512, 512, stride_dw=1, stride_pw=1)
 
         self.dw_sep_conv7 = DepthwiseSeparableConv(512,  1024, stride_dw=2, stride_pw=1)
-        self.dw_sep_conv8 = DepthwiseSeparableConv(1024, 1024, stride_dw=2, stride_pw=1)
+        self.dw_sep_conv8 = DepthwiseSeparableConv(1024, 1024, stride_dw=1, stride_pw=1)
 
         self.avgpool = nn.AdaptiveAvgPool2d(1)
         self.fc = nn.Linear(1024, num_classes)
@@ -91,4 +91,5 @@ class MobileNet(nn.Module):
         x = self.avgpool(x)
         x = x.view(x.size(0), -1)
         x = self.fc(x)
+        x = self.softmax(x)
         return x

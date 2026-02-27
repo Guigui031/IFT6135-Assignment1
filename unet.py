@@ -32,16 +32,16 @@ class DecoderBlock(nn.Module):
 
     def forward(self, x, skip):
         x = self.upconv(x)
-        x = torch.cat([skip, x], dim=1)  # concat along channel axis
+        x = torch.cat([x, skip], dim=1)  # concat along channel axis
         return self.conv(x)
 
 
 class UNet(nn.Module):
     def __init__(self, input_shape, num_classes):
         super().__init__()
-        in_channels = input_shape[0]
+        in_channels = input_shape
 
-        # ── Encoder ──────────────────────────────────────────────────────────
+        # Encoder
         self.encoder_block1 = double_conv_block(in_channels, 64)
         self.encoder_block2 = double_conv_block(64, 128)
         self.encoder_block3 = double_conv_block(128, 256)
@@ -49,24 +49,24 @@ class UNet(nn.Module):
         self.encoder_block5 = double_conv_block(512, 1024)  # bottleneck
         self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
 
-        # ── Decoder ──────────────────────────────────────────────────────────
+        # Decoder
         self.decoder_block1 = DecoderBlock(1024, 512)
         self.decoder_block2 = DecoderBlock(512, 256)
         self.decoder_block3 = DecoderBlock(256, 128)
         self.decoder_block4 = DecoderBlock(128, 64)
 
-        # ── Output ───────────────────────────────────────────────────────────
+        # Output
         self.outconv = nn.Conv2d(64, num_classes, kernel_size=1)
 
     def forward(self, x):
-        # Encoder — save feature maps for skip connections
+        # Encoder
         e1 = self.encoder_block1(x)
         e2 = self.encoder_block2(self.pool(e1))
         e3 = self.encoder_block3(self.pool(e2))
         e4 = self.encoder_block4(self.pool(e3))
         e5 = self.encoder_block5(self.pool(e4))  # bottleneck
 
-        # Decoder — pass skip connection from matching encoder level
+        # Decoder
         d1 = self.decoder_block1(e5, e4)
         d2 = self.decoder_block2(d1, e3)
         d3 = self.decoder_block3(d2, e2)
