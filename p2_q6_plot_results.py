@@ -36,12 +36,14 @@ def main():
 
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
 
+    ME = 2  # mark every 2 epochs (15 epochs total)
+
     # ── Loss ──────────────────────────────────────────────────────────────────
     ax = axes[0]
-    ax.plot(epochs, mlp["train_losses"],  "o-",  color="steelblue",   label="MLP train")
-    ax.plot(epochs, mlp["valid_losses"],  "o--", color="steelblue",   label="MLP val")
-    ax.plot(epochs, mob["train_losses"],  "s-",  color="darkorange",  label="MobileNet train")
-    ax.plot(epochs, mob["valid_losses"],  "s--", color="darkorange",  label="MobileNet val")
+    ax.plot(epochs, mlp["train_losses"],  "o-", color="steelblue",  markevery=ME, label="MLP train")
+    ax.plot(epochs, mlp["valid_losses"],  "s-", color="steelblue",  markevery=ME, label="MLP val")
+    ax.plot(epochs, mob["train_losses"],  "o-", color="darkorange", markevery=ME, label="MobileNet train")
+    ax.plot(epochs, mob["valid_losses"],  "s-", color="darkorange", markevery=ME, label="MobileNet val")
     ax.set_xlabel("Epoch")
     ax.set_ylabel("Loss")
     ax.set_title("Training and Validation Loss")
@@ -50,10 +52,10 @@ def main():
 
     # ── Accuracy ──────────────────────────────────────────────────────────────
     ax = axes[1]
-    ax.plot(epochs, mlp["train_accs"],  "o-",  color="steelblue",   label="MLP train")
-    ax.plot(epochs, mlp["valid_accs"],  "o--", color="steelblue",   label="MLP val")
-    ax.plot(epochs, mob["train_accs"],  "s-",  color="darkorange",  label="MobileNet train")
-    ax.plot(epochs, mob["valid_accs"],  "s--", color="darkorange",  label="MobileNet val")
+    ax.plot(epochs, mlp["train_accs"],  "o-", color="steelblue",  markevery=ME, label="MLP train")
+    ax.plot(epochs, mlp["valid_accs"],  "s-", color="steelblue",  markevery=ME, label="MLP val")
+    ax.plot(epochs, mob["train_accs"],  "o-", color="darkorange", markevery=ME, label="MobileNet train")
+    ax.plot(epochs, mob["valid_accs"],  "s-", color="darkorange", markevery=ME, label="MobileNet val")
     ax.set_xlabel("Epoch")
     ax.set_ylabel("Accuracy")
     ax.set_title("Training and Validation Accuracy")

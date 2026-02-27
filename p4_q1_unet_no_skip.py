@@ -37,7 +37,7 @@ class UNetNoSkip(nn.Module):
     """
     def __init__(self, input_shape, num_classes):
         super().__init__()
-        in_channels = input_shape[0]
+        in_channels = input_shape
 
         # ── Encoder (identical to UNet) ───────────────────────────────────
         self.encoder_block1 = double_conv_block(in_channels, 64)

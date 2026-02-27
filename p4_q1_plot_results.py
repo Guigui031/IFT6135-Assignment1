@@ -35,22 +35,24 @@ def main():
 
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
 
+    ME = 4  # show a marker every 4 epochs to avoid clutter
+
     # ── Loss ──────────────────────────────────────────────────────────────
     ax = axes[0]
-    ax.plot(epochs, unet["train_losses"],   "o-",  color="steelblue",  label="UNet train")
-    ax.plot(epochs, unet["valid_losses"],   "o--", color="steelblue",  label="UNet val")
-    ax.plot(epochs, noskip["train_losses"], "s-",  color="darkorange", label="UNet (no skip) train")
-    ax.plot(epochs, noskip["valid_losses"], "s--", color="darkorange", label="UNet (no skip) val")
+    ax.plot(epochs, unet["train_losses"],   "o-", color="steelblue",  markevery=ME, label="UNet train")
+    ax.plot(epochs, unet["valid_losses"],   "s-", color="steelblue",  markevery=ME, label="UNet val")
+    ax.plot(epochs, noskip["train_losses"], "o-", color="darkorange", markevery=ME, label="UNet (no skip) train")
+    ax.plot(epochs, noskip["valid_losses"], "s-", color="darkorange", markevery=ME, label="UNet (no skip) val")
     ax.set_xlabel("Epoch"); ax.set_ylabel("DiceCE Loss")
     ax.set_title("Training and Validation Loss")
     ax.legend(); ax.grid(True, linestyle="--", alpha=0.5)
 
     # ── Dice score ────────────────────────────────────────────────────────
     ax = axes[1]
-    ax.plot(epochs, unet["train_accs"],   "o-",  color="steelblue",  label="UNet train")
-    ax.plot(epochs, unet["valid_accs"],   "o--", color="steelblue",  label="UNet val")
-    ax.plot(epochs, noskip["train_accs"], "s-",  color="darkorange", label="UNet (no skip) train")
-    ax.plot(epochs, noskip["valid_accs"], "s--", color="darkorange", label="UNet (no skip) val")
+    ax.plot(epochs, unet["train_accs"],   "o-", color="steelblue",  markevery=ME, label="UNet train")
+    ax.plot(epochs, unet["valid_accs"],   "s-", color="steelblue",  markevery=ME, label="UNet val")
+    ax.plot(epochs, noskip["train_accs"], "o-", color="darkorange", markevery=ME, label="UNet (no skip) train")
+    ax.plot(epochs, noskip["valid_accs"], "s-", color="darkorange", markevery=ME, label="UNet (no skip) val")
     ax.set_xlabel("Epoch"); ax.set_ylabel("Dice Score")
     ax.set_title("Training and Validation Dice Score")
     ax.legend(); ax.grid(True, linestyle="--", alpha=0.5)

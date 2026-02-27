@@ -1,3 +1,6 @@
+# Guillaume Genois, 20248507
+# February 27, 2026
+
 import torch
 import numpy as np
 import torch.nn as nn

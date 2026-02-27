@@ -16,9 +16,9 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-LABELS = ['No augmentation', 'Geometric', 'Photometric', 'Elastic', 'Combined']
-COLORS = ['#333333', '#e41a1c', '#ff7f00', '#4daf4a', '#377eb8']
-STYLES = ['-', '--', '-.', ':', (0, (3,1,1,1))]
+LABELS = ['No augmentation', 'Geometric', 'Photometric', 'Gaussian noise', 'Zoom', 'Combined']
+COLORS = ['#333333', '#e41a1c', '#ff7f00', '#4daf4a', '#984ea3', '#377eb8']
+STYLES = ['-', '--', '-.', ':', (0, (3,1,1,1)), (0, (5,2))]
 
 
 def load(path):
@@ -40,11 +40,11 @@ def main():
 
     fig, axes = plt.subplots(1, 2, figsize=(13, 5))
 
-    for log, label, color, style in zip(logs, LABELS, COLORS, STYLES):
-        axes[0].plot(epochs, log["valid_losses"], linestyle=style,
-                     color=color, label=label)
-        axes[1].plot(epochs, log["valid_accs"],   linestyle=style,
-                     color=color, label=label)
+    ME = 4  # mark every 4 epochs
+
+    for log, label, color in zip(logs, LABELS, COLORS):
+        axes[0].plot(epochs, log["valid_losses"], "s-", color=color, markevery=ME, label=label)
+        axes[1].plot(epochs, log["valid_accs"],   "s-", color=color, markevery=ME, label=label)
 
     axes[0].set_xlabel("Epoch"); axes[0].set_ylabel("DiceCE Loss (val)")
     axes[0].set_title("Validation Loss — Augmentation strategies")

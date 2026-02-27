@@ -1,3 +1,6 @@
+# Guillaume Genois, 20248507
+# February 27, 2026
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F

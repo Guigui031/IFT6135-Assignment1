@@ -45,17 +45,21 @@ def main():
 
     fig, axes = plt.subplots(1, 2, figsize=(13, 5))
 
+    ME = 4  # mark every 4 epochs
+
     for log, lr, color in zip(logs, args.lrs, LR_COLORS):
         label = f"lr={lr}"
-        axes[0].plot(epochs, log["valid_losses"], "-",  color=color, label=label)
-        axes[1].plot(epochs, log["valid_accs"],   "-",  color=color, label=label)
+        axes[0].plot(epochs, log["valid_losses"], "s-", color=color, markevery=ME, label=label)
+        axes[1].plot(epochs, log["valid_accs"],   "s-", color=color, markevery=ME, label=label)
 
     axes[0].set_xlabel("Epoch"); axes[0].set_ylabel("DiceCE Loss (val)")
     axes[0].set_title("Validation Loss — LR sweep")
+    axes[0].set_ylim(0, 2.0)   # clip spike at lr=0.1 epoch 11 (~24.5) for readability
     axes[0].legend(); axes[0].grid(True, linestyle="--", alpha=0.5)
 
     axes[1].set_xlabel("Epoch"); axes[1].set_ylabel("Dice Score (val)")
     axes[1].set_title("Validation Dice Score — LR sweep")
+    axes[1].set_ylim(0, 1.0)
     axes[1].legend(); axes[1].grid(True, linestyle="--", alpha=0.5)
 
     # Summary table

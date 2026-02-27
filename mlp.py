@@ -1,3 +1,6 @@
+# Guillaume Genois, 20248507
+# February 27, 2026
+
 import torch
 from typing import List, Tuple
 from torch import nn

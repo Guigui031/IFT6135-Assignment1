@@ -1,42 +1,34 @@
 \documentclass{article}
+\usepackage[margin=1in]{geometry}
 \usepackage{graphicx}
 \usepackage{booktabs}
 \usepackage{float}
 \usepackage{amsmath}
 \usepackage{hyperref}
 
-\title{IFT6135 - H2026}
+\title{IFT6135 - Assignment 1 Report}
 \author{Guillaume Genois, 20248507}
-\date{January 2026}
+\date{February 27, 2026}
 
 \begin{document}
 
 \maketitle
 
-\section{Introduction}
-
 %══════════════════════════════════════════════════════════════════════════════
-\section{Problem 2}
+\section*{Problem 2}
 %══════════════════════════════════════════════════════════════════════════════
 
-\subsection{Question 1: Speed comparison of \texttt{discrete\_2d\_convolution}
+\subsection*{Question 1: Speed comparison of \texttt{discrete\_2d\_convolution} 
             vs \texttt{scipy.signal.convolve2d}}
 
 \subsubsection*{Experimental setup}
 
-We measure the average wall-clock time (over 5 runs) of two implementations:
-\begin{itemize}
-  \item \textbf{Custom} (\texttt{discrete\_2d\_convolution}): a pure-NumPy
-        implementation using explicit Python \texttt{for}-loops over every
-        output pixel, each iteration computing an element-wise product of an
-        image patch with the kernel via \texttt{np.sum}.
-  \item \textbf{SciPy} (\texttt{scipy.signal.convolve2d}): called with
-        \texttt{mode='same'} to match the custom function's output size.
-\end{itemize}
-
-We sweep four image sizes ($64$, $128$, $256$, $512$ pixels square) and three
-kernel sizes ($3\!\times\!3$, $7\!\times\!7$, $15\!\times\!15$) on random
-float64 arrays.
+The average wall-clock time (over 5 runs) is measured for two implementations: a
+custom function \\(\texttt{discrete\_2d\_convolution}), implemented in pure
+NumPy with explicit Python \texttt{for}-loops over every output pixel, and the
+SciPy function (\texttt{scipy.signal.convolve2d}). We sweep four
+image sizes ($64$, $128$, $256$, $512$ pixels square) and three kernel sizes
+($3\!\times\!3$, $7\!\times\!7$, $15\!\times\!15$) on random float64 arrays.
 
 \subsubsection*{Results}
 
@@ -77,45 +69,28 @@ float64 arrays.
   \label{fig:conv_benchmark}
 \end{figure}
 
-\subsubsection*{Explanation of the speed difference}
-
-\paragraph{Custom implementation.}
-The custom function uses two nested Python \texttt{for}-loops — one over each
-output pixel — for a total of $H \times W$ Python iterations.  Inside each
+The custom function uses two nested Python \texttt{for}-loops (one over each
+output pixel) for a total of $H \times W$ Python iterations.  Inside each
 iteration, \texttt{np.sum(patch * kernel)} performs $K_h \times K_w$
 floating-point operations in C, but the loop itself is interpreted by the
 Python runtime.  The overall time complexity is
 $\mathcal{O}(H \cdot W \cdot K_h \cdot K_w)$, and the constant factor is
-large because Python loop overhead dominates for small kernels (the inner
-NumPy call is very short-lived relative to the Python dispatch cost).
+large because Python loop overhead dominates for small kernels.
+In contrast, \texttt{scipy.signal.convolve2d} is implemented in compiled
+C and avoids Python-level loops entirely.
 
-\paragraph{SciPy implementation.}
-\texttt{scipy.signal.convolve2d} is implemented in compiled C/Fortran and
-avoids Python-level loops entirely.  For large kernels it can additionally
-switch to an FFT-based algorithm with complexity
-$\mathcal{O}(H \cdot W \cdot \log(H \cdot W))$, which is asymptotically
-cheaper than the direct-sum approach.
-
-\paragraph{Why the speedup \emph{decreases} with larger kernels.}
-For a small kernel (e.g.\ $3\!\times\!3$), the inner NumPy work per Python
-iteration is tiny, so \emph{Python overhead} is the bottleneck and the
-speedup is largest (${\approx}200\times$).  As the kernel grows (e.g.\
-$15\!\times\!15$), each Python iteration triggers more NumPy work, slightly
-amortising the overhead, and SciPy's own cost grows too — leading to a
-smaller but still substantial speedup (${\approx}16\times$).
-
-\paragraph{Conclusion.}
-The gap illustrates why production deep-learning frameworks never implement
-convolutions with Python loops.  Using compiled back-ends (and optionally
-FFT-based algorithms) is essential for achieving practical training and
-inference speeds.
+For a small kernel (for example $3\!\times\!3$), the inner NumPy work per Python
+iteration is tiny, so Python overhead is the bottleneck and the
+speedup of SciPy over the custom implementation is largest
+(${\approx}200\times$).  As the kernel grows (for example $15\!\times\!15$), each
+Python iteration triggers more NumPy work, slightly amortising the overhead,
+and SciPy's own cost grows too, leading to a smaller but still substantial
+speedup (${\approx}16\times$).
 
 % ─────────────────────────────────────────────────────────────────────────────
-\subsection{Question 2: Blurring kernel}
+\subsection*{Question 2: Blurring kernel}
 
-\subsubsection*{Proposed kernel}
-
-We use a \textbf{Gaussian kernel} of size $15\times15$ with standard deviation
+The chosen kernel is a Gaussian kernel of size $15\times15$ with standard deviation
 $\sigma = 3$ pixels, defined as:
 
 \begin{equation}
@@ -145,42 +120,27 @@ Figure~\ref{fig:blur_result}.
   \label{fig:blur_result}
 \end{figure}
 
-\subsubsection*{Why Gaussian convolution performs blurring}
-
 Convolving an image with a kernel replaces every pixel value with a
-\emph{weighted average} of its neighbourhood.  When the kernel weights are
-non-negative and sum to~$1$ — as in Equation~\eqref{eq:gaussian_kernel} —
+weighted average of its neighbourhood.  When the kernel weights are
+non-negative and sum to~$1$ (as in Equation~\eqref{eq:gaussian_kernel}),
 each output pixel becomes a mixture of nearby input pixels, which has two
-immediate consequences:
-
-\begin{enumerate}
-  \item \textbf{High-frequency detail is attenuated.}  Sharp transitions
-        (edges, fine textures) correspond to rapid spatial changes in pixel
-        intensity — i.e.\ high-frequency components in the Fourier domain.
-        Averaging over a neighbourhood dampens these abrupt changes, reducing
-        high-frequency energy and producing a smoother image.
-
-  \item \textbf{Low-frequency structure is preserved.}  Regions of slowly
-        varying intensity (large uniform areas, coarse shapes) are nearly
-        constant across the averaging window, so their contribution to the
-        output is barely changed.
-\end{enumerate}
+immediate consequences. First, high-frequency detail is attenuated:
+sharp transitions (edges, fine textures) correspond to rapid spatial changes
+in pixel intensity. Averaging over a neighbourhood dampens these abrupt changes, reducing
+high-frequency energy and producing a smoother image. Second,
+low-frequency structure is preserved: regions of slowly varying
+intensity (large uniform areas, coarse shapes) are nearly constant across the
+averaging window, so their contribution to the output is barely changed.
 
 The Gaussian weighting is preferable to a flat \emph{box} (average) kernel
 because it gives more weight to pixels close to the centre and progressively
-less weight to distant ones.  This smooth roll-off avoids the ringing
-artefacts (Gibbs phenomenon) that a sharp rectangular window introduces, and
-produces a more visually natural blur.  Formally, the Gaussian kernel is the
-unique kernel that is separable, isotropic, and whose repeated application
-remains Gaussian — a property inherited from the Central Limit Theorem, which
-states that repeated averaging converges to a Gaussian distribution.
+less weight to distant ones.  This smooth roll-off produces a more natural blur 
+than a sharp rectangular window.
 
 % ─────────────────────────────────────────────────────────────────────────────
-\subsection{Question 3: Edge-detection kernels}
+\subsection*{Question 3: Edge-detection kernels}
 
-\subsubsection*{Proposed kernels}
-
-We use the \textbf{Sobel operator}, a standard first-order derivative filter
+The Sobel operator is used, a standard first-order derivative filter
 that combines a finite-difference gradient with Gaussian smoothing along the
 orthogonal axis.  Two $3\times3$ kernels are defined:
 
@@ -195,16 +155,7 @@ $G_y$ (horizontal edges) approximates the partial derivative of the image
 intensity along the vertical axis ($\partial I / \partial y$).
 $G_x$ (vertical edges) approximates the partial derivative along the
 horizontal axis ($\partial I / \partial x$).
-Both kernels are visualised in Figure~\ref{fig:sobel_kernels}.
-
-\begin{figure}[H]
-  \centering
-  \includegraphics[width=0.7\linewidth]{sobel_kernels.png}
-  \caption{Sobel kernels $G_y$ (left) and $G_x$ (right).
-           Red cells carry positive weights; blue cells carry negative weights.
-           The central column/row of zeros makes the kernel anti-symmetric.}
-  \label{fig:sobel_kernels}
-\end{figure}
+Both kernels are given in Equation~\ref{eq:sobel}.
 
 \subsubsection*{Results}
 
@@ -224,10 +175,8 @@ As expected, $G_y$ highlights the roof line, hood, and bumpers (predominantly
 horizontal boundaries), while $G_x$ highlights the windshield pillars, wheel
 arches, and side panels (predominantly vertical boundaries).
 
-\subsubsection*{How the kernels detect edges}
-
 Each Sobel kernel can be decomposed as the outer product of a
-\emph{smoothing} vector and a \emph{differencing} vector:
+smoothing vector and a differencing vector:
 
 \begin{equation}
   G_y = \begin{bmatrix}1\\2\\1\end{bmatrix}
@@ -247,25 +196,15 @@ of the output captures both rising and falling transitions as bright ridges
 in the response map.
 
 % ─────────────────────────────────────────────────────────────────────────────
-\subsection{Question 6: MLP vs MobileNet on PathMNIST}
+\subsection*{Question 6: MLP vs MobileNet on PathMNIST}
 
 \subsubsection*{Experimental setup}
 
-Both models are trained on \textbf{PathMNIST} (9-class colorectal tissue
-classification, $3\times28\times28$ images) using the fixed hyperparameters
-in \texttt{main\_classification.py}:
-
-\begin{itemize}
-  \item Optimiser: AdamW, lr $= 10^{-3}$, weight decay $= 5\times10^{-4}$
-  \item Batch size: 128, Epochs: 15, Loss: CrossEntropyLoss
-  \item Data augmentation (train): random horizontal flip + random resized crop
-\end{itemize}
-
-\textbf{MLP}: four hidden layers $[1024, 512, 64, 64]$, ReLU, Glorot normal
-init, flattened input of size $2352$.
-
-\textbf{MobileNet}: depthwise separable convolutions (Table~1 of the
-assignment), AdaptiveAvgPool $\to$ $1\times1$, linear head $1024\to9$.
+Both models are trained on PathMNIST using the fixed hyperparameters
+in \texttt{main\_classification.py}. The AdamW optimiser with learning rate
+$10^{-3}$ and weight decay $5\times10^{-4}$ is used, with a batch size of 128,
+and training for 15 epochs with CrossEntropyLoss. During training, random
+horizontal flips and random resized crops are applied as data augmentation.
 
 \subsubsection*{Results}
 
@@ -277,8 +216,8 @@ assignment), AdaptiveAvgPool $\to$ $1\times1$, linear head $1024\to9$.
     \toprule
     Model & Best val.\ accuracy & Test accuracy \\
     \midrule
-    MLP       & -- & -- \\
-    MobileNet & -- & -- \\
+    MLP       & 0.697 & 0.687 \\
+    MobileNet & 0.936 & 0.809 \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -288,49 +227,71 @@ assignment), AdaptiveAvgPool $\to$ $1\times1$, linear head $1024\to9$.
   \includegraphics[width=\linewidth]{training_curves.png}
   \caption{Training and validation loss (left) and accuracy (right) over
            15 epochs.  MLP: blue; MobileNet: orange.
-           Solid lines: train, dashed lines: validation.}
+           Circles: train, squares: validation.}
   \label{fig:training_curves}
 \end{figure}
 
-\subsubsection*{Conclusion}
+MobileNet significantly outperforms the MLP on this task, achieving a best
+validation accuracy of \textbf{93.6\%} compared to the MLP's \textbf{69.7\%}.
+Several factors explain this performance gap:
 
-% TODO: fill in after training runs complete.
+\paragraph{Inductive bias.}
+MobileNet's convolutional architecture encodes two critical assumptions that
+match the structure of image data: translation equivariance, whereby
+convolutional filters detect the same features (edges, textures, patterns)
+regardless of their position in the image (in contrast to the MLP, which must
+learn separate weights for each spatial location), and local
+connectivity, in which convolutions process small spatial neighbourhoods,
+exploiting the fact that pixels are more strongly correlated with nearby
+pixels than distant ones while the MLP treats the image as a flat vector,
+discarding all spatial structure.
+
+\paragraph{Hierarchical feature learning.}
+MobileNet's architecture builds a hierarchy of increasingly abstract features:
+early layers detect low-level patterns (edges, gradients), middle layers
+combine them into textures and object parts, and late layers capture
+high-level semantic concepts. The MLP, with only a shallow stack of
+fully-connected layers, struggles to learn such hierarchies from scratch.
+
+\paragraph{Test performance gap.}
+MobileNet's test accuracy (80.9\%) is lower than its validation accuracy
+(93.6\%), while the MLP shows a smaller gap (68.7\% test vs 69.7\% val).
+This suggests MobileNet may have slightly overfit to the validation set
+(or the test set has a different distribution), though it still substantially
+outperforms the MLP on both splits.
+\\\\
+In summary, convolutional architectures like MobileNet are fundamentally
+better suited to image classification tasks than fully-connected MLPs,
+exploiting spatial structure and translation invariance to achieve superior
+performance with comparable parameter counts.
+
 
 %══════════════════════════════════════════════════════════════════════════════
-\section{Problem 3}
+\section*{Problem 4}
 %══════════════════════════════════════════════════════════════════════════════
 
-\subsection{Question 1: UNet implementation}
-
-% TODO
-
-\subsection{Question 2: DiceLoss and DiceCELoss}
-
-% TODO
-
-%══════════════════════════════════════════════════════════════════════════════
-\section{Problem 4}
-%══════════════════════════════════════════════════════════════════════════════
-
-\subsection{Question 1: UNet without skip connections}
+\subsection*{Question 1: UNet without skip connections}
 
 \subsubsection*{Architecture}
 
-We build a \textbf{plain encoder-decoder} (autoencoder) with the same channel
-widths as the standard UNet, but with skip connections removed.  The only
-architectural difference is in the decoder blocks:
+Both models use \texttt{segmentation\_models\_pytorch} (smp) with a
+ResNet-18 encoder and a standard UNet decoder, trained from scratch
+on the retina vessel segmentation dataset.
 
 \begin{itemize}
-  \item \textbf{UNet decoder block}: $\text{upconv}(C_\text{in}
-        \!\to\! C_\text{out})$ $\to$ concat skip $(C_\text{out})$
-        $\to$ double-conv$(2C_\text{out} \!\to\! C_\text{out})$
-  \item \textbf{No-skip decoder block}: $\text{upconv}(C_\text{in}
-        \!\to\! C_\text{out})$ $\to$ double-conv$(C_\text{out}
-        \!\to\! C_\text{out})$
+  \item \textbf{UNet (with skip):} \texttt{smp.Unet(encoder\_name=``resnet18'')},
+    the standard configuration where encoder feature maps are concatenated to
+    the decoder at each resolution level.
+  \item \textbf{UNet (no skip):} same architecture, but before passing the
+    encoder features to the decoder all skip-connection feature maps (that is,
+    every feature tensor except the bottleneck) are replaced with zero tensors
+    of the same shape.  This ensures the decoder architecture is identical;
+    the only change is that skip information is withheld.
 \end{itemize}
 
-All other hyperparameters (optimizer, lr, epochs, loss) are held constant
-so that the comparison isolates the effect of skip connections.
+\noindent All other hyperparameters (AdamW optimizer, $\text{lr}=10^{-4}$,
+$\text{wd}=5\times10^{-4}$, batch size 2, 40 epochs, DiceCE loss) are held
+constant so that the comparison isolates the effect of skip connections.
 
 \subsubsection*{Results}
 
@@ -339,12 +300,12 @@ so that the comparison isolates the effect of skip connections.
   \caption{Best validation Dice score for UNet vs.\ UNet without skip
            connections (40 epochs, retina vessel segmentation).}
   \label{tab:p4q1_results}
-  \begin{tabular}{lrr}
+  \begin{tabular}{lr}
     \toprule
     Model & Best val.\ Dice \\
     \midrule
-    UNet (with skip)    & -- \\
-    UNet (no skip)      & -- \\
+    UNet (with skip)    & 0.8103 \\
+    UNet (no skip)      & 0.6106 \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -357,40 +318,54 @@ so that the comparison isolates the effect of skip connections.
   \label{fig:p4q1_curves}
 \end{figure}
 
-\subsubsection*{Conclusion}
 
-% TODO: fill in after training. Suggested talking points:
-%  - UNet (with skip) should achieve a significantly higher Dice score.
-%  - Without skip connections, high-frequency spatial detail (vessel edges,
-%    thin structures) is lost in the bottleneck and cannot be recovered.
-%  - Skip connections allow the decoder to directly reuse fine-grained
-%    encoder features at each resolution level, enabling accurate localisation.
-%  - The no-skip model may still segment large vessels but struggles with
-%    thin capillaries and precise boundaries.
+UNet with skip connections achieves a best validation Dice score of
+0.8103, significantly outperforming the no-skip variant (0.6106) by
+$\approx$20 percentage points.
+\\\\
+Without skip connections, high-frequency spatial information (vessel edges,
+thin capillaries, precise boundaries) is progressively lost as the encoder
+downsamples the input through multiple pooling operations, and the bottleneck
+representation cannot preserve fine-grained localization details. During
+upsampling, the decoder attempts to reconstruct spatial structure from this
+coarse representation alone, but the missing high-resolution details cannot be
+recovered through transposed convolutions, yielding blurry segmentations that
+correctly identify large vessels but fail to precisely delineate thin
+structures. Skip connections address this by directly concatenating encoder
+feature maps with decoder feature maps at each resolution level, giving the
+decoder both coarse semantic information from the bottleneck (what to
+segment) and fine spatial information from the encoder (where to segment).
+This dual pathway lets the decoder recover precise boundaries: encoder
+features supply localization cues (edges, textures) while decoder features
+supply semantic context (vessel vs.\ background classification). For retina
+vessel segmentation, thin capillaries ($<5$ pixels wide) are critical
+diagnostic features, and the no-skip model, relying solely on the bottleneck,
+likely misses these or produces fragmented predictions.
 
-\subsection{Question 2: Effect of learning rate}
+\subsection*{Question 2: Effect of learning rate}
 
 \subsubsection*{Experimental setup}
 
-We train the UNet with the \textbf{Adam} optimizer for 40 epochs using five
-learning rates: $10^{-1}$, $10^{-2}$, $10^{-3}$, $10^{-4}$, $10^{-5}$.
+Model training uses \texttt{smp.Unet} (ResNet-18 encoder, same as Q1) with the
+Adam optimizer for 40 epochs using five learning rates:
+$10^{-1}$, $10^{-2}$, $10^{-3}$, $10^{-4}$, $10^{-5}$.
 All other hyperparameters (batch size, weight decay, loss) are held constant.
 
 \subsubsection*{Results}
 
 \begin{table}[H]
   \centering
-  \caption{Best validation Dice score per learning rate.}
+  \caption{Best validation Dice score per learning rate (40 epochs, Adam).}
   \label{tab:p4q2_lr}
   \begin{tabular}{lr}
     \toprule
     Learning rate & Best val.\ Dice \\
     \midrule
-    $10^{-1}$ & -- \\
-    $10^{-2}$ & -- \\
-    $10^{-3}$ & -- \\
-    $10^{-4}$ & -- \\
-    $10^{-5}$ & -- \\
+    $10^{-1}$ & 0.2946 \\
+    $10^{-2}$ & 0.8098 \\
+    $10^{-3}$ & \textbf{0.8383} \\
+    $10^{-4}$ & 0.8099 \\
+    $10^{-5}$ & 0.3824 \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -403,66 +378,71 @@ All other hyperparameters (batch size, weight decay, loss) are held constant.
   \label{fig:p4q2_lr}
 \end{figure}
 
-\subsubsection*{Findings}
+\paragraph{$\text{lr}=10^{-1}$: divergence.}
+The largest learning rate produces highly unstable training. The validation
+Dice score oscillates violently and never exceeds 0.30.  Steps are so large
+that the optimizer overshoots good minima at every iteration.
 
-% TODO: fill in after training. Expected observations below:
-%
-% lr = 0.1:  Likely diverges or oscillates heavily — steps too large,
-%            loss explodes or gets stuck at a poor minimum.
-%
-% lr = 0.01: May converge but unstably — loss curve noisy, possible
-%            overshooting around good minima.
-%
-% lr = 0.001: Typically the best trade-off for Adam on segmentation tasks —
-%             fast convergence, stable curve, high Dice score.
-%
-% lr = 0.0001: Converges smoothly but slowly — reaches a good solution
-%              by epoch 40 but may not fully converge.
-%
-% lr = 0.00001: Too slow — the model barely trains in 40 epochs, giving
-%               low Dice scores close to a random or trivial prediction.
-%
-% General conclusion: Adam is sensitive to learning rate.  The optimal
-% value balances step size (fast convergence) against stability (avoiding
-% overshooting).  For this task lr ~ 1e-3 is expected to work best.
+\paragraph{$\text{lr}=10^{-2}$ and $10^{-4}$: competitive but sub-optimal.}
+Both learning rates converge reliably to similar final performance
+($\approx 0.81$ Dice), despite taking different paths.  $10^{-2}$ converges
+faster in early epochs but with slightly more noise; $10^{-4}$ converges more
+smoothly but at a slower pace, reaching the same value by epoch 40.
 
-\subsection{Question 3: Data augmentation strategies}
+\paragraph{$\text{lr}=10^{-3}$: best trade-off.}
+The intermediate learning rate achieves the highest best validation Dice
+(0.8383), combining fast early-epoch progress with stable, monotone
+improvement throughout training. 
+
+\paragraph{$\text{lr}=10^{-5}$: under-fitting or insufficient convergence.}
+With very small steps the model barely trains in 40 epochs, achieving only
+0.3824 Dice.  The validation loss curve hardly decreases, indicating that the
+model is far from convergence.
+\\\\
+Adam is sensitive to the learning rate.  The optimal value ($10^{-3}$) balances
+step size against stability.  Rates one order of magnitude higher cause
+divergence; rates one order of magnitude lower converge reliably but under-perform
+within the 40-epoch budget.  Rates two or more orders of magnitude away from the
+optimum either diverge or fail to converge entirely.
+
+\subsection*{Question 3: Data augmentation strategies}
 
 \subsubsection*{Strategies investigated}
 
-We compare four augmentation strategies against a no-augmentation baseline,
-all applied exclusively to the training set.  Every strategy transforms the
-image and mask \emph{consistently} so that spatial labels remain valid.
+Four augmentation strategies are compared against a no-augmentation baseline,
+all applied exclusively to the training set.
 
-\begin{enumerate}
-  \item \textbf{Geometric}: random horizontal flip ($p=0.5$), random vertical
-        flip ($p=0.5$), random rotation $\pm30°$ with reflect padding.
-        Rationale: retinal vessels have no preferred orientation; the model
-        should be invariant to flips and moderate rotations.
+\begin{itemize}
+  \item \textbf{Geometric}: random horizontal and vertical flips ($p=0.5$
+    each) together with random rotations of up to $\pm30°$ using reflect
+    padding.  Since retinal vessels have no preferred orientation, the model
+    should be invariant to such transformations.
 
   \item \textbf{Photometric}: random brightness offset $\in[-40,40]$ and
-        random contrast scaling factor $\in[0.7,1.3]$ applied to the image
-        only (masks are unchanged).
-        Rationale: fundus camera calibration and illumination vary between
-        patients; contrast/brightness shifts simulate this variability.
+    contrast scaling $\in[0.7,1.3]$ applied to the image only, mimicking
+    variations in fundus camera calibration and illumination across patients.
 
-  \item \textbf{Elastic deformation}: smooth random displacement field
-        ($\alpha=50$, $\sigma=6$) applied to both image and mask via
-        bilinear / nearest-neighbour interpolation respectively.
-        Rationale: elastic deformations simulate natural tissue deformation
-        and increase effective dataset size for thin, curved structures.
+  \item \textbf{Gaussian noise}: additive zero-mean Gaussian noise with
+    standard deviation sampled uniformly from $[5, 25]$ applied to the image
+    only.  This simulates sensor noise and CCD read-out noise present in
+    real fundus cameras, a source of variation orthogonal to global
+    brightness or contrast changes.
 
-  \item \textbf{Combined}: all three strategies applied in sequence
-        (geometric $\to$ photometric $\to$ elastic).
-        Rationale: if the three strategies address orthogonal sources of
-        variation, combining them should yield the best generalisation.
-\end{enumerate}
+  \item \textbf{Random zoom}: a random sub-region of scale $s \in [0.7, 1.0]$
+    is cropped and resized back to the original resolution (bilinear for
+    image, nearest-neighbour for mask).  This simulates different camera
+    zoom levels and forces the model to be scale-invariant, addressing a
+    source of variation not covered by the other three strategies.
+
+\end{itemize}
 
 \begin{figure}[H]
   \centering
-  % TODO: add sample augmented images here (one row per strategy)
-  \caption{Example augmented images (top to bottom: geometric, photometric,
-           elastic, combined) with corresponding masks.}
+  \includegraphics[width=\linewidth]{p4_q3_aug_examples.png}
+  \caption{Example augmented training image and corresponding mask for each
+           strategy (columns, left to right: no augmentation, geometric,
+           photometric, Gaussian noise, zoom).
+           Top row: RGB image. Bottom row: binary vessel mask.}
   \label{fig:p4q3_aug_examples}
 \end{figure}
 
@@ -476,11 +456,11 @@ image and mask \emph{consistently} so that spatial labels remain valid.
     \toprule
     Strategy & Best val.\ Dice \\
     \midrule
-    No augmentation & -- \\
-    Geometric       & -- \\
-    Photometric     & -- \\
-    Elastic         & -- \\
-    Combined        & -- \\
+    No augmentation & 0.8057 \\
+    Geometric       & \textbf{0.8141} \\
+    Photometric     & 0.8117 \\
+    Gaussian noise  & 0.7958 \\
+    Random zoom     & 0.7787 \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -493,40 +473,53 @@ image and mask \emph{consistently} so that spatial labels remain valid.
   \label{fig:p4q3_aug_curves}
 \end{figure}
 
-\subsubsection*{Conclusion}
+The results reveal a clear split between augmentations that help and those
+that hurt on this small dataset (80 training images).
 
-% TODO: fill in after training. Suggested talking points:
-%  - Geometric augmentation typically helps most — orientation invariance
-%    is a strong prior for vessel structure.
-%  - Photometric augmentation helps with domain shift between patients/cameras.
-%  - Elastic deformation is particularly valuable for thin structures
-%    (capillaries) where the model must learn deformable boundaries.
-%  - Combined should outperform any single strategy if they address
-%    independent sources of variation; if not, the added noise may hurt.
-%  - The dataset is small (DRIVE: 20 train images), so augmentation has
-%    a larger relative impact than on large datasets.
+\paragraph{Geometric and photometric augmentations improve generalisation.}
+Geometric augmentation achieves the best validation Dice (\textbf{0.8141},
++0.84~pp over the baseline), confirming that orientation invariance is a
+strong prior for retinal vessel segmentation: vessels have no preferred
+direction, so flips and moderate rotations generate genuinely new training
+samples. Photometric augmentation ranks second (0.8117, +0.60~pp), reflecting
+real inter-patient variation in fundus camera illumination and calibration.
+Both strategies add meaningful diversity without distorting the spatial
+structure of the labels.
 
-\subsection{Question 4: Pretrained model fine-tuning}
+\paragraph{Gaussian noise and zoom hurt performance.}
+Gaussian noise (0.7958, $-$0.99~pp) and random zoom (0.7787, $-$2.70~pp)
+both perform below the no-augmentation baseline. Gaussian noise introduces
+per-pixel stochastic perturbations that partially obscure the fine texture
+cues the model relies on to detect thin capillaries; with only 80 training
+images, there are too few examples for the model to learn noise invariance
+reliably. Random zoom (scale $\in[0.7,1.0]$) is particularly aggressive:
+cropping up to 30\% of the image can remove entire vascular structures from
+the visible field, creating ambiguous training samples where vessels
+abruptly disappear at the crop boundary.
+\\\\
+For small medical imaging datasets, conservative augmentations that respect
+the imaging geometry (flips, rotations) and simulate realistic acquisition
+variability (brightness, contrast) are most effective.  Aggressive spatial
+or noise-based augmentations require larger datasets to be beneficial.
+
+\subsection*{Question 4: Pretrained model fine-tuning}
 
 \subsubsection*{Setup}
 
-We compare two models trained under identical conditions (same optimizer,
-lr, epochs, loss, data):
+Two models are compared, trained under identical conditions (AdamW,
+$\text{lr}=10^{-4}$, $\text{wd}=5\times10^{-4}$, 40 epochs, DiceCE loss):
 
 \begin{itemize}
-  \item \textbf{UNet from scratch}: our custom implementation with randomly
-        initialised weights (Problem 3).
-  \item \textbf{ResNet18-UNet (fine-tuned)}: \texttt{smp.Unet} from the
-        \texttt{segmentation-models-pytorch} library with a ResNet-18 encoder
-        pre-trained on ImageNet.  The encoder starts from ImageNet weights;
-        the decoder is randomly initialised and trained from scratch.
+  \item \textbf{UNet (from scratch)}: \texttt{smp.Unet} with a ResNet-18
+        encoder initialised \emph{randomly} (results from Q1).
+  \item \textbf{ResNet18-UNet (fine-tuned)}: identical architecture, but the
+        ResNet-18 encoder is initialised with ImageNet weights.
+        The decoder is randomly initialised and trained from scratch in both
+        cases.
 \end{itemize}
 
-The key difference is the encoder initialisation.  In the pretrained model,
-the encoder has already learned powerful hierarchical feature representations
-(edges, textures, object parts) from 1.2M ImageNet images.  Fine-tuning
-adapts these representations to the retinal domain while the decoder learns
-to map them to vessel segmentation masks.
+\noindent The only difference is the encoder initialisation.  Both models have
+the same number of trainable parameters.
 
 \subsubsection*{Results}
 
@@ -534,12 +527,12 @@ to map them to vessel segmentation masks.
   \centering
   \caption{Best validation Dice score: from scratch vs.\ fine-tuned.}
   \label{tab:p4q4}
-  \begin{tabular}{lrr}
+  \begin{tabular}{lr}
     \toprule
-    Model & Parameters & Best val.\ Dice \\
+    Model & Best val.\ Dice \\
     \midrule
-    UNet (from scratch)         & -- & -- \\
-    ResNet18-UNet (fine-tuned)  & -- & -- \\
+    UNet (from scratch)         & 0.8103 \\
+    ResNet18-UNet (fine-tuned)  & \textbf{0.8296} \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -553,35 +546,28 @@ to map them to vessel segmentation masks.
   \label{fig:p4q4_curves}
 \end{figure}
 
-\subsubsection*{Conclusion}
 
-% TODO: fill in after training. Suggested talking points:
-%
-% Convergence speed:
-%   The pretrained model should converge faster — its encoder already
-%   extracts meaningful low-level features (edges, gradients) that are
-%   relevant for vessel detection, requiring fewer gradient steps to
-%   reach a good solution.
-%
-% Final performance:
-%   The pretrained model should achieve a higher Dice score, especially
-%   given the small training set (DRIVE: 20 images).  With so little
-%   data, learning good feature representations from scratch is difficult;
-%   pretrained features act as strong regularisation.
-%
-% Training stability:
-%   The pretrained model's loss curve should be smoother — it starts
-%   from a better initialisation rather than random noise.
-%
-% Domain gap:
-%   ImageNet contains natural images, not fundus photographs.  Despite
-%   this gap, low-level features (edge detectors, texture filters) transfer
-%   well.  Higher-level semantic features transfer less, which is why
-%   the decoder must still be trained from scratch.
-%
-% General principle:
-%   Transfer learning is most beneficial when: (1) the source dataset is
-%   large and diverse, (2) the target dataset is small, and (3) there is
-%   some overlap in low-level feature structure between domains.
+Fine-tuning the ImageNet-pretrained encoder improves the best validation Dice
+from 0.8103 to 0.8296 (+1.9~pp) with no additional
+parameters or training cost.
+\\\\
+The pretrained encoder already extracts meaningful low-level features (edge
+detectors, gradient filters, texture responses) that are directly relevant to
+vessel detection.  As a result, the fine-tuned model reaches higher Dice scores
+in the first few epochs and seems to keep that same advantage throughout the epochs.
+This effect might be stronger here since we are in a limited-data setting where learning
+features quickly is important.
+\\\\
+ImageNet contains natural photographs, not fundus images.  Despite this
+domain gap, low-level features (oriented edges, blob detectors) transfer
+well: retinal vessels are thin elongated structures whose detection relies
+on exactly such features.  Higher-level semantic features (object parts,
+scene categories) are less transferable, which is why the decoder must still
+be trained from scratch.
+\\\\
+Transfer learning is most beneficial when (1) the source dataset is large and
+diverse, (2) the target dataset is small, and (3) low-level feature structure
+is shared across domains.  All three conditions hold here, which explains the
+consistent improvement over random initialisation.
 
 \end{document}

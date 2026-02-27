@@ -40,6 +40,31 @@ torch.cuda.manual_seed(42)
 torch.backends.cudnn.benchmark = True
 
 
+class SmpUNetNoSkip(torch.nn.Module):
+    """
+    smp.Unet with all skip connections zeroed out — fair no-skip baseline.
+    Uses the same ResNet18 encoder and UNet decoder as smp_unet, but every
+    skip feature passed to the decoder is replaced with zeros so the decoder
+    can only use the upsampled bottleneck representation.
+    """
+    def __init__(self, encoder_name, encoder_weights, in_channels, classes):
+        super().__init__()
+        import segmentation_models_pytorch as smp
+        self._model = smp.Unet(
+            encoder_name=encoder_name,
+            encoder_weights=encoder_weights,
+            in_channels=in_channels,
+            classes=classes,
+        )
+
+    def forward(self, x):
+        features = self._model.encoder(x)
+        # Keep only the bottleneck (last); zero out all skip features
+        no_skip = [torch.zeros_like(f) for f in features[:-1]] + [features[-1]]
+        decoder_output = self._model.decoder(no_skip)
+        return self._model.segmentation_head(decoder_output)
+
+
 class GetDataset(Dataset):
     def __init__(self, images_path, masks_path):
 
@@ -80,10 +105,10 @@ def parse_args():
     parser.add_argument('--lr', type=float, default=1e-4, help='Learning rate (default: %(default)s).')
     parser.add_argument('--weight_decay', type=float, default=5e-4, help='Weight decay (default: %(default)s).')
     parser.add_argument('--print_every', type=int, default=80, help='Number of minibatches after which we print the loss (default: %(default)s).')
-    parser.add_argument('--model', type=str, default='unet', choices=['unet', 'unet_noskip', 'pretrained_unet'], help='Model to train (default: %(default)s).')
+    parser.add_argument('--model', type=str, default='unet', choices=['unet', 'unet_noskip', 'smp_unet', 'smp_unet_noskip', 'pretrained_unet'], help='Model to train (default: %(default)s).')
     parser.add_argument('--optimizer', type=str, default='adamw', choices=['adamw', 'adam'], help='Optimizer (default: %(default)s).')
     parser.add_argument('--augmentation', type=str, default='none',
-                        choices=['none', 'geometric', 'photometric', 'elastic', 'combined'],
+                        choices=['none', 'geometric', 'photometric', 'gaussian_noise', 'zoom', 'combined'],
                         help='Training augmentation strategy (default: %(default)s).')
     return parser.parse_args()
 
@@ -189,9 +214,24 @@ def main():
     # Load model
     print(f'Build {args.model.upper()} model...')
     if args.model == 'unet':
-        model = UNet(input_shape=(3, 256, 256), num_classes=1)
+        model = UNet(input_shape=3, num_classes=1)
     elif args.model == 'unet_noskip':
-        model = UNetNoSkip(input_shape=(3, 256, 256), num_classes=1)
+        model = UNetNoSkip(input_shape=3, num_classes=1)
+    elif args.model == 'smp_unet':
+        import segmentation_models_pytorch as smp
+        model = smp.Unet(
+            encoder_name="resnet18",
+            encoder_weights=None,  # Train from scratch
+            in_channels=3,
+            classes=1,
+        )
+    elif args.model == 'smp_unet_noskip':
+        model = SmpUNetNoSkip(
+            encoder_name="resnet18",
+            encoder_weights=None,
+            in_channels=3,
+            classes=1,
+        )
     else:  # pretrained_unet
         import segmentation_models_pytorch as smp
         model = smp.Unet(
@@ -222,8 +262,8 @@ def main():
     train_times, valid_times = [], []
     
     # We define a set of data loaders that we can use for various purposes later.
-    train_dataloader = DataLoader(train_set, batch_size=args.batch_size, shuffle=True, drop_last=True, pin_memory=True, num_workers=4)
-    valid_dataloader = DataLoader(val_set, batch_size=args.batch_size, shuffle=False, drop_last=False, num_workers=4)
+    train_dataloader = DataLoader(train_set, batch_size=args.batch_size, shuffle=True, drop_last=True, pin_memory=True, num_workers=0)
+    valid_dataloader = DataLoader(val_set, batch_size=args.batch_size, shuffle=False, drop_last=False, num_workers=0)
 
     # Train and evaluate the model
     print(f'Training UNET model...')

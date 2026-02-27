@@ -36,22 +36,24 @@ def main():
 
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
 
+    ME = 4  # show a marker every 4 epochs to avoid clutter
+
     # ── Loss ──────────────────────────────────────────────────────────────
     ax = axes[0]
-    ax.plot(epochs, scratch["train_losses"],    "o-",  color="steelblue",  label="UNet (scratch) train")
-    ax.plot(epochs, scratch["valid_losses"],    "o--", color="steelblue",  label="UNet (scratch) val")
-    ax.plot(epochs, pretrained["train_losses"], "s-",  color="darkorange", label="ResNet18-UNet (pretrained) train")
-    ax.plot(epochs, pretrained["valid_losses"], "s--", color="darkorange", label="ResNet18-UNet (pretrained) val")
+    ax.plot(epochs, scratch["train_losses"],    "o-", color="steelblue",  markevery=ME, label="UNet (scratch) train")
+    ax.plot(epochs, scratch["valid_losses"],    "s-", color="steelblue",  markevery=ME, label="UNet (scratch) val")
+    ax.plot(epochs, pretrained["train_losses"], "o-", color="darkorange", markevery=ME, label="ResNet18-UNet (pretrained) train")
+    ax.plot(epochs, pretrained["valid_losses"], "s-", color="darkorange", markevery=ME, label="ResNet18-UNet (pretrained) val")
     ax.set_xlabel("Epoch"); ax.set_ylabel("DiceCE Loss")
     ax.set_title("Training and Validation Loss")
     ax.legend(fontsize=8); ax.grid(True, linestyle="--", alpha=0.5)
 
     # ── Dice score ────────────────────────────────────────────────────────
     ax = axes[1]
-    ax.plot(epochs, scratch["train_accs"],    "o-",  color="steelblue",  label="UNet (scratch) train")
-    ax.plot(epochs, scratch["valid_accs"],    "o--", color="steelblue",  label="UNet (scratch) val")
-    ax.plot(epochs, pretrained["train_accs"], "s-",  color="darkorange", label="ResNet18-UNet (pretrained) train")
-    ax.plot(epochs, pretrained["valid_accs"], "s--", color="darkorange", label="ResNet18-UNet (pretrained) val")
+    ax.plot(epochs, scratch["train_accs"],    "o-", color="steelblue",  markevery=ME, label="UNet (scratch) train")
+    ax.plot(epochs, scratch["valid_accs"],    "s-", color="steelblue",  markevery=ME, label="UNet (scratch) val")
+    ax.plot(epochs, pretrained["train_accs"], "o-", color="darkorange", markevery=ME, label="ResNet18-UNet (pretrained) train")
+    ax.plot(epochs, pretrained["valid_accs"], "s-", color="darkorange", markevery=ME, label="ResNet18-UNet (pretrained) val")
     ax.set_xlabel("Epoch"); ax.set_ylabel("Dice Score")
     ax.set_title("Training and Validation Dice Score")
     ax.legend(fontsize=8); ax.grid(True, linestyle="--", alpha=0.5)

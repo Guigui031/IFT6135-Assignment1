@@ -2,10 +2,11 @@
 Problem 4, Question 3 — Data augmentation strategies for retinal vessel segmentation.
 
 Four strategies are implemented:
-  1. geometric   — random horizontal/vertical flip + random rotation ±30°
-  2. photometric — random brightness & contrast jitter (image only)
-  3. elastic     — smooth random elastic deformation (image + mask)
-  4. combined    — geometric + photometric + elastic
+  1. geometric      — random horizontal/vertical flip + random rotation ±30°
+  2. photometric    — random brightness & contrast jitter (image only)
+  3. gaussian_noise — additive Gaussian noise (image only)
+  4. zoom           — random crop + resize (image + mask)
+  5. combined       — geometric + photometric + gaussian_noise + zoom
 
 All augmentations are applied only during training.
 Image and mask are always transformed consistently.
@@ -14,7 +15,6 @@ Image and mask are always transformed consistently.
 import numpy as np
 import torch
 import cv2
-from scipy.ndimage import map_coordinates, gaussian_filter
 from torch.utils.data import Dataset
 
 
@@ -55,47 +55,53 @@ def aug_photometric(image, mask):
     return image, mask
 
 
-def aug_elastic(image, mask, alpha=50, sigma=6):
+def aug_gaussian_noise(image, mask, std_range=(5, 25)):
     """
-    Smooth elastic deformation applied consistently to image and mask.
-    alpha controls deformation magnitude, sigma controls smoothness.
+    Additive Gaussian noise applied to the image only (mask unchanged).
+    std is sampled uniformly from std_range each call.
     """
-    h, w  = image.shape[:2]
-    dx    = gaussian_filter(np.random.randn(h, w), sigma) * alpha
-    dy    = gaussian_filter(np.random.randn(h, w), sigma) * alpha
-    yy, xx = np.meshgrid(np.arange(h), np.arange(w), indexing='ij')
-    src_y = np.clip(yy + dy, 0, h - 1)
-    src_x = np.clip(xx + dx, 0, w - 1)
+    std = np.random.uniform(*std_range)
+    noise = np.random.randn(*image.shape).astype(np.float32) * std
+    noisy = np.clip(image.astype(np.float32) + noise, 0, 255).astype(np.uint8)
+    return noisy, mask
 
-    # Deform each image channel (bilinear)
-    deformed = np.stack([
-        map_coordinates(image[:, :, c], [src_y, src_x],
-                        order=1, mode='reflect')
-        for c in range(image.shape[2])
-    ], axis=2).astype(np.uint8)
 
-    # Deform mask (nearest-neighbour to preserve binary values)
-    deformed_mask = map_coordinates(mask.astype(np.float32), [src_y, src_x],
-                                    order=0, mode='reflect').astype(np.uint8)
-    return deformed, deformed_mask
+def aug_zoom(image, mask, scale_range=(0.7, 1.0)):
+    """
+    Random zoom-in: crop a random sub-region of scale s ∈ scale_range and
+    resize it back to the original resolution.  Applied consistently to
+    both image (bilinear) and mask (nearest-neighbour).
+    """
+    h, w = image.shape[:2]
+    s = np.random.uniform(*scale_range)
+    h_crop, w_crop = int(h * s), int(w * s)
+    y0 = np.random.randint(0, h - h_crop + 1)
+    x0 = np.random.randint(0, w - w_crop + 1)
+    image = cv2.resize(image[y0:y0+h_crop, x0:x0+w_crop], (w, h),
+                       interpolation=cv2.INTER_LINEAR)
+    mask  = cv2.resize(mask[y0:y0+h_crop, x0:x0+w_crop],  (w, h),
+                       interpolation=cv2.INTER_NEAREST)
+    return image, mask
 
 
 def aug_combined(image, mask):
-    """Apply geometric, photometric, and elastic augmentation in sequence."""
+    """Apply geometric, photometric, gaussian_noise and zoom in sequence."""
     image, mask = aug_geometric(image, mask)
     image, mask = aug_photometric(image, mask)
-    image, mask = aug_elastic(image, mask)
+    image, mask = aug_gaussian_noise(image, mask)
+    image, mask = aug_zoom(image, mask)
     return image, mask
 
 
 # ─── Augmented Dataset ────────────────────────────────────────────────────────
 
 AUG_FN = {
-    'none':        lambda img, msk: (img, msk),
-    'geometric':   aug_geometric,
-    'photometric': aug_photometric,
-    'elastic':     aug_elastic,
-    'combined':    aug_combined,
+    'none':          lambda img, msk: (img, msk),
+    'geometric':     aug_geometric,
+    'photometric':   aug_photometric,
+    'gaussian_noise': aug_gaussian_noise,
+    'zoom':          aug_zoom,
+    'combined':      aug_combined,
 }
 
 
@@ -108,7 +114,7 @@ class AugmentedDataset(Dataset):
         images_path: list of image file paths
         masks_path:  list of mask file paths
         augmentation: one of 'none' | 'geometric' | 'photometric' |
-                      'elastic' | 'combined'
+                      'gaussian_noise' | 'zoom' | 'combined'
     """
     def __init__(self, images_path, masks_path, augmentation='none'):
         assert augmentation in AUG_FN, \

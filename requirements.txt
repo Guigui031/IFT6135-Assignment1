@@ -6,3 +6,4 @@ tqdm
 monai
 medmnist
 segmentation-models-pytorch
+matplotlib
